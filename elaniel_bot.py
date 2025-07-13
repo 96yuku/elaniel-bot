@@ -61,23 +61,31 @@ async def on_message(message):
 
     content = message.content.lower()
 
-    # Handle DMs
+    # === Handle DMs ===
     if isinstance(message.channel, discord.DMChannel):
-        if message.author.id != OWNER_USER_ID:
+        if message.author.id == OWNER_USER_ID:
+            prompt = message.content.strip()
+            if not prompt:
+                await message.channel.send("Yes? How can I serve?")
+                return
+            reply = await get_chatgpt_reply(prompt)
+            await message.channel.send(reply)
+            return
+        else:
             denial = random.choice(dm_denials)
             await message.channel.send(denial)
             return
 
-    # Handle guild messages
+    # === Handle Guild Messages ===
     if message.guild:
         if message.author.id != OWNER_USER_ID:
             member = message.guild.get_member(message.author.id)
             if not member or not any(role.name == ALLOWED_ROLE_NAME for role in member.roles):
                 return
 
-        # === Your messages ===
+        # === For you ===
         if message.author.id == OWNER_USER_ID:
-            # ✅ Always reply in the special channel (no trigger needed)
+            # ✅ Always reply in special channel
             if message.channel.id == SPECIAL_CHANNEL_ID:
                 prompt = message.content.strip()
                 if not prompt:
@@ -87,7 +95,7 @@ async def on_message(message):
                 await message.channel.send(reply)
                 return
 
-            # ✅ Elsewhere: fuzzy match
+            # ✅ Fuzzy trigger anywhere in other channels
             if any(trigger in content for trigger in TRIGGER_WORDS):
                 prompt = content
                 for trigger in TRIGGER_WORDS:
@@ -101,7 +109,7 @@ async def on_message(message):
                 await message.channel.send(reply)
                 return
 
-        # === Others: trigger must be at the start ===
+        # === For others ===
         else:
             if any(content.startswith(trigger) for trigger in TRIGGER_WORDS):
                 prompt = message.content.split(' ', 1)[1] if ' ' in message.content else ""
