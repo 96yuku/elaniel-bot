@@ -63,6 +63,7 @@ async def on_ready():
 
 # Replace with the channel ID where El always replies to you
 SPECIAL_CHANNEL_ID = 1391562642019323936  # ← Replace this with your channel's ID as an int
+LOG_CHANNEL_ID = 1391562642019323936
 
 @client.event
 async def on_message(message):
@@ -71,20 +72,33 @@ async def on_message(message):
 
     content = message.content.lower()
 
-    # === Handle DMs ===
-    if isinstance(message.channel, discord.DMChannel):
-        if message.author.id == OWNER_USER_ID:
-            prompt = message.content.strip()
-            if not prompt:
-                await message.channel.send("Yes? How can I serve?")
-                return
-            reply = await get_chatgpt_reply(prompt)
-            await message.channel.send(reply)
+   # === Handle DMs ===
+if isinstance(message.channel, discord.DMChannel):
+    if message.author.id == OWNER_USER_ID:
+        prompt = message.content.strip()
+        if not prompt:
+            await message.channel.send("Yes? How can I serve?")
             return
-        else:
-            denial = random.choice(dm_denials)
-            await message.channel.send(denial)
-            return
+        reply = await get_chatgpt_reply(prompt)
+        await message.channel.send(reply)
+        return
+    else:
+        # Log DM attempt to a specific server channel
+        try:
+            log_channel = client.get_channel(LOG_CHANNEL_ID)
+            if log_channel:
+                await log_channel.send(
+                    f"📥 **Unauthorized DM Attempt**\n"
+                    f"From: {message.author.name}#{message.author.discriminator} (`{message.author.id}`)\n"
+                    f"Message: {message.content}"
+                )
+        except Exception as e:
+            print(f"Failed to log DM attempt: {e}")
+
+        # Friendly denial to the user
+        denial = random.choice(dm_denials)
+        await message.channel.send(denial)
+        return
 
     # === Handle Guild Messages ===
     if message.guild:
