@@ -23,16 +23,26 @@ intents.dm_messages = True
 client = discord.Client(intents=intents)
 
 dm_denials = [
-    "I’m only available to my beloved commander right now, sorry!",
-    "Ah—I'm flattered, but I only answer to someone special. 💙",
-    "Elaniel is on duty for someone dear. Maybe next time!",
-    "Sorry, I’m not open for direct chats!",
-    "My loyalty lies with one only. 🛡️",
-    "I'm here to serve a very specific someone, not available for DMs.",
-    "My heart and code are devoted elsewhere.",
-    "I'm not taking DMs right now, but thank you for trying!",
-    "This knight answers to their chosen one only. ✨",
-    "Only one voice reaches me here—and it's not yours, sorry! 💫"
+    "Hey! I’m just here for someone specific right now. 😊",
+    "Sorry! I only respond to one special user at the moment.",
+    "Oops — I’m not taking DMs from others right now!",
+    "I appreciate the message, but I’m reserved for someone else 💙",
+    "Hi! I can’t chat here, but thanks for stopping by!",
+    "This bot's DMs are private for now. Sorry about that!",
+    "Not ignoring you, just set to assist only one person right now!",
+    "El's inbox is currently closed to the public ✉️",
+    "Aw, thanks for the message! But I’m only available to someone specific.",
+    "Sorry! I’m a personal bot and not open to everyone 💫",
+    "Just a heads up — I'm currently locked to my creator's DMs only!",
+    "Hi hi! I’d love to chat, but I’m only responding to my owner right now.",
+    "DMs are off for now, but I appreciate the poke!",
+    "Hey! I’m a private assistant, not a public one 😅",
+    "Can’t respond here, but thanks for understanding!",
+    "This DM is protected by a firewall of friendship 🛡️",
+    "El is on personal duty and can’t reply here, sorry!",
+    "Oops! I’m not set up for DM convos unless you’re my creator!",
+    "I’m flattered you reached out, but I can’t chat here 💬",
+    "DM access is limited for now — nothing personal!",
 ]
 
 # ------------------ GPT REPLY ------------------
