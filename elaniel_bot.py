@@ -1,5 +1,5 @@
 import discord
-import openai
+from openai import OpenAI
 import random
 import os
 
@@ -11,7 +11,7 @@ ALLOWED_ROLE_NAME = "El's friend"
 OWNER_USER_ID = 178453871700475904  # Your Discord user ID
 # ------------------------------------------
 
-openai.api_key = OPENAI_API_KEY
+client_openai = OpenAI(api_key=OPENAI_API_KEY)
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -38,7 +38,7 @@ dm_denials = [
 # ------------------ GPT REPLY ------------------
 async def get_chatgpt_reply(prompt):
     try:
-        response = openai.ChatCompletion.create(
+        response = client_openai.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt}]
         )
