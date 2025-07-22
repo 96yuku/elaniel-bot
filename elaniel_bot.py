@@ -37,7 +37,6 @@ You are a helpful and polite assistant. Keep responses neutral, clear, and frien
 
 async def get_chatgpt_reply(prompt, user, guild=None):
     try:
-        # Default to GPT-3.5
         model = "gpt-3.5-turbo"
         system_prompt = SYSTEM_PROMPT_OTHER
 
@@ -47,6 +46,7 @@ async def get_chatgpt_reply(prompt, user, guild=None):
         elif guild:
             member = guild.get_member(user.id)
             if member and any(role.name == ALLOWED_ROLE_NAME for role in member.roles):
+                model = "gpt-4o"
                 system_prompt = SYSTEM_PROMPT_FRIEND
 
         response = client_openai.chat.completions.create(
@@ -57,6 +57,7 @@ async def get_chatgpt_reply(prompt, user, guild=None):
             ]
         )
         return response.choices[0].message.content.strip()
+
     except Exception as e:
         return f"[Error communicating with GPT: {e}]"
 
@@ -121,6 +122,7 @@ async def on_message(message):
 
     # === Handle Server Messages ===
     if message.guild:
+        # Owner commands - always allowed
         if message.author.id == OWNER_USER_ID:
             if message.channel.id == SPECIAL_CHANNEL_ID:
                 prompt = message.content.strip()
@@ -144,6 +146,7 @@ async def on_message(message):
                 await message.channel.send(reply)
                 return
 
+        # Everyone else - open access with different GPT models internally
         else:
             if any(content.startswith(trigger) for trigger in TRIGGER_WORDS):
                 prompt = message.content.split(' ', 1)[1] if ' ' in message.content else ""
