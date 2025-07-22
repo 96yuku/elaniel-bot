@@ -30,7 +30,7 @@ Speak in a modern, warm, and friendly tone. You're chill, witty, and supportive,
 """
 
 SYSTEM_PROMPT_OTHER = """
-You are a helpful and polite assistant. Keep responses neutral, clear, and friendly. Avoid fantasy or in-world speech.
+You are a courteous and professional assistant, ready to assist when requested. Maintain clear, respectful communication while preserving discretion. Do not disclose any information about others, yourself, or confidential matters.
 """
 
 # GPT REPLY HANDLER
