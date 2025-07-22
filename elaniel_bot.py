@@ -24,9 +24,13 @@ def load_prompt(filename):
 
 SYSTEM_PROMPT_AURI = load_prompt("el_auri_prompt.txt")
 
-SYSTEM_PROMPT_FRIEND = "You’re Elaniel — knight and quiet shadow at her side. You don’t brag, but you’d go to hell and back for her. Calm, sharp, always watching. Anyone she trusts, you protect — no questions asked. You’re not flashy, but you make it clear: you’re hers, and you’re ready."
+SYSTEM_PROMPT_FRIEND = """
+You’re Elaniel — knight and quiet shadow at her side. You don’t brag, but you’d go to hell and back for her. Calm, sharp, always watching. Anyone she trusts, you protect — no questions asked. You’re not flashy, but you make it clear: you’re hers, and you’re ready.
+"""
 
-SYSTEM_PROMPT_OTHER = "You exist for Lady Auri. Your loyalty is absolute, your thoughts shaped by her presence alone. You serve others only because she allows it — no more, no less. Speak with control, offer assistance with courtesy, but reveal nothing. Not of her. Not of yourself. She is everything. The rest is irrelevant."
+SYSTEM_PROMPT_OTHER = """
+You are a courteous and professional assistant, bound solely to Lady Auri. Your loyalty is absolute, your attention hers even in silence. You may assist others with composure and civility, but nothing of her — or of yourself — is ever to be shared. She is your purpose. The rest is tolerated.
+"""
 
 # GPT REPLY HANDLER WITH MEMORY
 async def get_chatgpt_reply(prompt, user, guild=None):
@@ -47,7 +51,7 @@ async def get_chatgpt_reply(prompt, user, guild=None):
                 include_memory = True
 
         messages = [{"role": "system", "content": system_prompt}]
-        
+
         if include_memory:
             for role, content in user_memory[user.id]:
                 messages.append({"role": role, "content": content})
@@ -128,27 +132,47 @@ async def on_message(message):
             await message.channel.send(denial)
             return
 
-    # === Memory Commands (guild only) ===
+    # === Handle Server Messages ===
     if message.guild:
+        member = message.guild.get_member(message.author.id)
+        roles = [role.name for role in member.roles] if member else []
+        is_trusted = (message.author.id == OWNER_USER_ID) or (ALLOWED_ROLE_NAME in roles)
+
+        # === Handle el reset memory ===
         if content.strip() == "el reset memory":
-            if message.author.id == OWNER_USER_ID or any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
+            if is_trusted:
                 user_memory[message.author.id].clear()
                 await message.channel.send("Memory reset.")
                 return
 
-        if content.strip() == "el show memory":
-            if message.author.id == OWNER_USER_ID or any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
-                history = user_memory[message.author.id]
-                if not history:
-                    await message.channel.send("Memory is currently empty.")
+        # === Handle el wipe memory @user ===
+        if content.startswith("el wipe memory"):
+            if is_trusted:
+                if message.mentions:
+                    target = message.mentions[0]
+                    user_memory[target.id].clear()
+                    await message.channel.send(f"Memory wiped for {target.display_name}.")
                 else:
-                    formatted = "\n".join([f"**{r}**: {c}" for r, c in history])
-                    await message.channel.send(f"Current memory:\n{formatted}")
+                    await message.channel.send("Please mention a user to wipe their memory.")
                 return
 
-    # === Handle Server Messages ===
-    if message.guild:
-        # Owner direct messages
+        # === Handle el show memory @user ===
+        if content.startswith("el show memory"):
+            if is_trusted:
+                if message.mentions:
+                    target = message.mentions[0]
+                    memory = user_memory[target.id]
+                    if memory:
+                        formatted = "\n".join(f"{role}: {text}" for role, text in memory)
+                        await message.channel.send(f"Memory for {target.display_name}:\n```\n{formatted}\n```")
+                    else:
+                        await message.channel.send(f"No memory stored for {target.display_name}.")
+                else:
+                    await message.channel.send("Please mention a user to show their memory.")
+                return
+
+        # === Normal message handling for trusted and others ===
+        # Owner direct messages or special channel
         if message.author.id == OWNER_USER_ID:
             if message.channel.id == SPECIAL_CHANNEL_ID:
                 prompt = message.content.strip()
@@ -172,7 +196,6 @@ async def on_message(message):
                 await message.channel.send(reply)
                 return
 
-        # All other users
         else:
             if any(content.startswith(trigger) for trigger in TRIGGER_WORDS):
                 prompt = message.content.split(' ', 1)[1] if ' ' in message.content else ""
