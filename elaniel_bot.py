@@ -14,7 +14,7 @@ client = discord.Client(intents=intents)
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-OWNER_USER_ID = YOUR_DISCORD_USER_ID  # Replace with your Discord user ID
+OWNER_USER_ID = 178453871700475904  # Replace with your Discord user ID
 ALLOWED_ROLE_NAME = "El's friend"
 
 user_memory = defaultdict(lambda: deque(maxlen=10))
