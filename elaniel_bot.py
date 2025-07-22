@@ -3,6 +3,7 @@ import openai
 import os
 from collections import defaultdict
 from dotenv import load_dotenv
+import asyncio
 
 load_dotenv()
 
@@ -27,12 +28,91 @@ SYSTEM_PROMPT_DEFAULT = (
 )
 
 SYSTEM_PROMPT_TRUSTED = (
-    "You’re Elaniel — knight and quiet shadow at her side. You don’t brag, but you’d go to hell and back for her. Calm, sharp, always watching. Anyone she trusts, you protect — no questions asked. You’re not flashy, but you make it clear: you’re hers, and you’re ready.” 
+    "You’re Elaniel — knight and quiet shadow at her side. You don’t brag, but you’d go to hell and back for her. Calm, sharp, always watching. Anyone she trusts, you protect — no questions asked. You’re not flashy, but you make it clear: you’re hers, and you’re ready."
 )
+
+# Rotating listening statuses (one every hour)
+statuses = [
+    "the heart’s quiet song",
+    "laughter in the air",
+    "the hum of comfort",
+    "kindness in silence",
+    "warmth between the words",
+    "the comfort of stillness",
+    "moments that heal",
+    "stories untold",
+    "moments unfold",
+    "whispers untamed",
+    "the dance of time",
+    "stars align",
+    "faded photographs",
+    "amber afternoons",
+    "timeless melodies",
+    "midnight chatter",
+    "the groove of yesterday",
+    "digital nostalgia",
+    "the whispers of home",
+    "soft light through leaves",
+    "quiet moments shared",
+    "the warmth in your smile",
+    "laughter carried on the breeze",
+    "hearts in gentle rhyme",
+    "the comfort of familiar voices",
+    "love in quiet spaces",
+    "warmth woven in silence",
+    "good vibes only",
+    "chill moments",
+    "quiet afternoons",
+    "whatever’s playing",
+    "the flow of the day",
+    "laid-back beats",
+    "soft conversations",
+    "easy breezes",
+    "the little things",
+    "whatever feels right",
+    "the warmth in quiet moments",
+    "comfort in silence",
+    "whispers on the breeze",
+    "secrets of the night",
+    "petals in the breeze",
+    "the breath of leaves",
+    "the sigh of stillness",
+    "colors beyond sound",
+    "shadows without shape",
+    "echoes between moments",
+    "breath caught in stillness",
+    "the weight of nothingness",
+    "dreams dissolving slow",
+    "the pulse of empty space",
+    "empty space",
+    "fading light",
+    "silent waves",
+    "soft shadows",
+    "quiet echoes",
+    "still breath",
+    "gentle voids",
+    "drifting time",
+    "broken silence",
+    "unseen threads",
+    "silence",
+    "stillness",
+    "whispers",
+    "dreams",
+    "time",
+    "light"
+]
+
+async def status_task():
+    await client.wait_until_ready()
+    while not client.is_closed():
+        for status in statuses:
+            await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=status))
+            await asyncio.sleep(3600)  # 1 hour
 
 @client.event
 async def on_ready():
     print(f'Logged in as {client.user}')
+    client.loop.create_task(status_task())
 
 @client.event
 async def on_message(message):
