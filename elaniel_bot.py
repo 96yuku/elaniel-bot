@@ -313,14 +313,20 @@ async def on_message(message):
         has_text_trigger = any(trigger in content for trigger in TRIGGER_WORDS)  # elaniel, el, エル
         starts_with_text_trigger = any(content.startswith(trigger) for trigger in TRIGGER_WORDS)
 
-        has_voice_trigger = "elan" in content
-        starts_with_voice_trigger = content.startswith("elan")
+        VOICE_TRIGGER_WORDS = ["elan", "エラン"]
+        has_voice_trigger = any(trigger in content for trigger in VOICE_TRIGGER_WORDS)
+        starts_with_voice_trigger = any(content.startswith(trigger) for trigger in VOICE_TRIGGER_WORDS)
+
 
         # OWNER
         if message.author.id == OWNER_USER_ID:
             if has_voice_trigger:
                 prompt = content
-                prompt = prompt.replace("elan", "", 1).strip()
+                for trigger in VOICE_TRIGGER_WORDS:
+                    if trigger in prompt:
+                    prompt = prompt.replace(trigger, "", 1).strip()
+                    break
+
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
@@ -352,8 +358,11 @@ async def on_message(message):
         elif any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
             if starts_with_voice_trigger:
                 prompt = content
-                if prompt.startswith("elan"):
-                    prompt = prompt[len("elan"):].strip()
+                for trigger in VOICE_TRIGGER_WORDS:
+                 if prompt.startswith(trigger):
+                    prompt = prompt[len(trigger):].strip()
+                    break
+
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
@@ -380,7 +389,13 @@ async def on_message(message):
         # PUBLIC USERS
         else:
             if starts_with_voice_trigger:
-                prompt = message.content.split(' ', 1)[1] if ' ' in message.content else ""
+                for trigger in VOICE_TRIGGER_WORDS:
+                    if content.startswith(trigger):
+                    prompt = content[len(trigger):].strip()
+                    break
+                else:
+                    prompt = ""
+
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
