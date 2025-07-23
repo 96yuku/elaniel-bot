@@ -242,6 +242,7 @@ async def on_message(message):
             return
 
     if message.guild:
+        # Handle memory wipe command
         if content.startswith("el wipe memory"):
             match = re.match(r"el wipe memory\s*<?@?(\d+)>?", content)
             if match and match.group(1):
@@ -258,6 +259,7 @@ async def on_message(message):
                 await message.channel.send("Your memory has been wiped.")
             return
 
+        # Handle memory show command
         if content.startswith("el show memory"):
             if message.author.id == OWNER_USER_ID:
                 parts = message.content.split()
@@ -307,17 +309,36 @@ async def on_message(message):
                 await message.channel.send("You do not have permission to view others' memory.")
                 return
 
+        # Voice and text reply logic starts here
+        has_el = any(trigger in content for trigger in TRIGGER_WORDS)
+        starts_with_el = any(content.startswith(trigger) for trigger in TRIGGER_WORDS)
+        has_say_voice = "say this in voice" in content
+
+        # OWNER
         if message.author.id == OWNER_USER_ID:
-            if message.channel.id == SPECIAL_CHANNEL_ID:
-                prompt = message.content.strip()
+            # Voice reply if el anywhere and say this in voice anywhere
+            if has_el and has_say_voice:
+                prompt = content
+                for trigger in TRIGGER_WORDS:
+                    if trigger in prompt:
+                        prompt = prompt.replace(trigger, '', 1).strip()
+                        break
+                prompt = prompt.replace("say this in voice", "").strip()
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
+
                 reply = await get_chatgpt_reply(prompt, message.author, message.guild)
-                await message.channel.send(reply)
+                try:
+                    mp3_file = await generate_voice(reply)
+                    await message.channel.send(file=discord.File(mp3_file))
+                    os.remove(mp3_file)
+                except Exception as e:
+                    await message.channel.send(f"Failed to generate voice: {e}")
                 return
 
-            if any(trigger in content for trigger in TRIGGER_WORDS):
+            # Else normal text reply if el anywhere
+            elif has_el:
                 prompt = content
                 for trigger in TRIGGER_WORDS:
                     if trigger in prompt:
@@ -330,13 +351,54 @@ async def on_message(message):
                 await message.channel.send(reply)
                 return
 
-        else:
-            if any(content.startswith(trigger) for trigger in TRIGGER_WORDS):
+        # ALLOWED ROLE (must start with el)
+        elif any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
+            if starts_with_el and has_say_voice:
+                prompt = content
+                for trigger in TRIGGER_WORDS:
+                    if prompt.startswith(trigger):
+                        prompt = prompt[len(trigger):].strip()
+                        break
+                prompt = prompt.replace("say this in voice", "").strip()
+                if not prompt:
+                    await message.channel.send("Yes? How can I serve?")
+                    return
+
+                reply = await get_chatgpt_reply(prompt, message.author, message.guild)
+                try:
+                    mp3_file = await generate_voice(reply)
+                    await message.channel.send(file=discord.File(mp3_file))
+                    os.remove(mp3_file)
+                except Exception as e:
+                    await message.channel.send(f"Failed to generate voice: {e}")
+                return
+
+            elif starts_with_el:
                 prompt = message.content.split(' ', 1)[1] if ' ' in message.content else ""
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
                 reply = await get_chatgpt_reply(prompt, message.author, message.guild)
                 await message.channel.send(reply)
+                return
+
+        # PUBLIC USERS
+        else:
+            if starts_with_el:
+                prompt = message.content.split(' ', 1)[1] if ' ' in message.content else ""
+                if not prompt:
+                    await message.channel.send("Yes? How can I serve?")
+                    return
+                reply = await get_chatgpt_reply(prompt, message.author, message.guild)
+                if has_say_voice:
+                    try:
+                        mp3_file = await generate_voice(reply)
+                        await message.channel.send(file=discord.File(mp3_file))
+                        os.remove(mp3_file)
+                    except Exception as e:
+                        await message.channel.send(f"Failed to generate voice: {e}")
+                else:
+                    await message.channel.send(reply)
+                return
 
 client.run(DISCORD_BOT_TOKEN)
