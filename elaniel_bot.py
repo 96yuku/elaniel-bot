@@ -1,4 +1,4 @@
-""import discord
+import discord
 from openai import OpenAI
 import random
 import os
