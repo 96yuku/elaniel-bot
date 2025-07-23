@@ -1,4 +1,4 @@
-import discord
+""import discord
 from openai import OpenAI
 import random
 import os
@@ -6,36 +6,42 @@ from collections import defaultdict, deque
 import asyncio
 import edge_tts
 import uuid
+import langdetect
 
 # ------------ CONFIGURE THESE -------------
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 TRIGGER_WORDS = ["elaniel", "el", "エル"]
 ALLOWED_ROLE_NAME = "El's friend"
-OWNER_USER_ID = 178453871700475904  # Replace with your actual Discord user ID
-SPECIAL_CHANNEL_ID = 1391562642019323936  # Replace with your channel's ID
-LOG_CHANNEL_ID = 1391562642019323936  # Log channel ID for DM attempts
+OWNER_USER_ID = 178453871700475904
+SPECIAL_CHANNEL_ID = 1391562642019323936
+LOG_CHANNEL_ID = 1391562642019323936
 # ------------------------------------------
 
 client_openai = OpenAI(api_key=OPENAI_API_KEY)
-user_memory = defaultdict(lambda: deque(maxlen=10))  # memory per user
+user_memory = defaultdict(lambda: deque(maxlen=10))
 
-# Load system prompts
 def load_prompt(filename):
     with open(filename, "r", encoding="utf-8") as f:
         return f.read()
 
 SYSTEM_PROMPT_AURI = load_prompt("el_auri_prompt.txt")
 
-SYSTEM_PROMPT_FRIEND = "You’re Elaniel — knight and quiet shadow at her side. You don’t brag, but you’d go to hell and back for her. Calm, sharp, always watching. Anyone she trusts, you protect — no questions asked. You’re not flashy, but you make it clear: you’re hers, and you’re ready."
+SYSTEM_PROMPT_FRIEND = (
+    "You’re Elaniel — knight and quiet shadow at her side. You don’t brag, but you’d go to hell and back for her."
+    " Calm, sharp, always watching. Anyone she trusts, you protect — no questions asked."
+    " You’re not flashy, but you make it clear: you’re hers, and you’re ready."
+)
 
-SYSTEM_PROMPT_OTHER = "You exist for Lady Auri. Your loyalty is absolute, your thoughts shaped by her presence alone. You serve others only because she allows it — no more, no less. Speak with control, offer assistance with courtesy, but reveal nothing. Not of her. Not of yourself. She is everything. The rest is irrelevant."
+SYSTEM_PROMPT_OTHER = (
+    "You exist for Lady Auri. Your loyalty is absolute, your thoughts shaped by her presence alone."
+    " You serve others only because she allows it — no more, no less. Speak with control, offer assistance with courtesy,"
+    " but reveal nothing. Not of her. Not of yourself. She is everything. The rest is irrelevant."
+)
 
 listening_statuses = [
-    # ... your existing statuses here ...
     "the heart’s quiet song",
     "laughter in the air",
-    # add the rest as in your original code
 ]
 
 async def status_cycler():
@@ -95,15 +101,22 @@ intents.dm_messages = True
 client = discord.Client(intents=intents)
 
 dm_denials = [
-    # your existing dm denial messages here...
     "Hey! I’m just here for someone specific right now. 😊",
     "Sorry! I only respond to one special user at the moment.",
-    # ...
 ]
 
 # --- Edge TTS voice generation helper ---
-async def generate_keita_voice(text: str) -> str:
-    voice = "ja-JP-KeitaNeural"
+async def generate_voice(text: str) -> str:
+    try:
+        lang = langdetect.detect(text)
+    except Exception:
+        lang = "en"
+
+    if lang == "ja":
+        voice = "ja-JP-KeitaNeural"
+    else:
+        voice = "en-US-GuyNeural"
+
     filename = f"elaniel_voice_{uuid.uuid4()}.mp3"
     communicate = edge_tts.Communicate(text=text, voice=voice)
     await communicate.save(filename)
@@ -121,9 +134,7 @@ async def on_message(message):
 
     content = message.content.lower()
 
-    # Voice command handling: !el_say <text>
     if message.content.startswith("!el_say"):
-        # Permission check
         if message.author.id != OWNER_USER_ID and not any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
             await message.channel.send("You don't have permission to use voice commands.")
             return
@@ -134,14 +145,13 @@ async def on_message(message):
             return
 
         try:
-            mp3_file = await generate_keita_voice(text_to_speak)
+            mp3_file = await generate_voice(text_to_speak)
             await message.channel.send(file=discord.File(mp3_file))
             os.remove(mp3_file)
         except Exception as e:
             await message.channel.send(f"Failed to generate voice: {e}")
         return
 
-    # === Handle DMs ===
     if isinstance(message.channel, discord.DMChannel):
         if message.author.id == OWNER_USER_ID:
             prompt = message.content.strip()
@@ -167,7 +177,6 @@ async def on_message(message):
             await message.channel.send(denial)
             return
 
-    # === Memory Commands (guild only) ===
     if message.guild:
         if content.strip() == "el reset memory":
             if message.author.id == OWNER_USER_ID or any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
@@ -185,8 +194,6 @@ async def on_message(message):
                     await message.channel.send(f"Current memory:\n{formatted}")
                 return
 
-    # === Handle Server Messages ===
-    if message.guild:
         if message.author.id == OWNER_USER_ID:
             if message.channel.id == SPECIAL_CHANNEL_ID:
                 prompt = message.content.strip()
@@ -219,5 +226,4 @@ async def on_message(message):
                 reply = await get_chatgpt_reply(prompt, message.author, message.guild)
                 await message.channel.send(reply)
 
-# ------------------ RUN BOT ------------------
 client.run(DISCORD_BOT_TOKEN)
