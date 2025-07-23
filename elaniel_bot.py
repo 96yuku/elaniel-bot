@@ -42,6 +42,71 @@ SYSTEM_PROMPT_OTHER = (
 listening_statuses = [
     "the heart’s quiet song",
     "laughter in the air",
+    "the hum of comfort",
+    "kindness in silence",
+    "warmth between the words",
+    "the comfort of stillness",
+    "moments that heal",
+    "stories untold",
+    "moments unfold",
+    "whispers untamed",
+    "the dance of time",
+    "stars align",
+    "faded photographs",
+    "amber afternoons",
+    "timeless melodies",
+    "midnight chatter",
+    "the groove of yesterday",
+    "digital nostalgia",
+    "the whispers of home",
+    "soft light through leaves",
+    "quiet moments shared",
+    "the warmth in your smile",
+    "laughter carried on the breeze",
+    "hearts in gentle rhyme",
+    "the comfort of familiar voices",
+    "love in quiet spaces",
+    "warmth woven in silence",
+    "good vibes only",
+    "chill moments",
+    "quiet afternoons",
+    "whatever’s playing",
+    "the flow of the day",
+    "laid-back beats",
+    "soft conversations",
+    "easy breezes",
+    "the little things",
+    "whatever feels right",
+    "the warmth in quiet moments",
+    "comfort in silence",
+    "whispers on the breeze",
+    "secrets of the night",
+    "petals in the breeze",
+    "the breath of leaves",
+    "the sigh of stillness",
+    "colors beyond sound",
+    "shadows without shape",
+    "echoes between moments",
+    "breath caught in stillness",
+    "the weight of nothingness",
+    "dreams dissolving slow",
+    "the pulse of empty space",
+    "empty space",
+    "fading light",
+    "silent waves",
+    "soft shadows",
+    "quiet echoes",
+    "still breath",
+    "gentle voids",
+    "drifting time",
+    "broken silence",
+    "unseen threads",
+    "silence",
+    "stillness",
+    "whispers",
+    "dreams",
+    "time",
+    "light"
 ]
 
 async def status_cycler():
@@ -103,23 +168,37 @@ client = discord.Client(intents=intents)
 dm_denials = [
     "Hey! I’m just here for someone specific right now. 😊",
     "Sorry! I only respond to one special user at the moment.",
+    "Oops — I’m not taking DMs from others right now!",
+    "I appreciate the message, but I’m reserved for someone else 💙",
+    "Hi! I can’t chat here, but thanks for stopping by!",
+    "This bot's DMs are private for now. Sorry about that!",
+    "Not ignoring you, just set to assist only one person right now!",
+    "El's inbox is currently closed to the public ✉️",
+    "Aw, thanks for the message! But I’m only available to someone specific.",
+    "Sorry! I’m a personal bot and not open to everyone 💫"
 ]
 
-# --- Edge TTS voice generation helper ---
+# --- Voice generation helper with Spruce for English ---
 async def generate_voice(text: str) -> str:
     try:
         lang = langdetect.detect(text)
     except Exception:
         lang = "en"
 
+    filename = f"elaniel_voice_{uuid.uuid4()}.mp3"
+
     if lang == "ja":
         voice = "ja-JP-KeitaNeural"
+        communicate = edge_tts.Communicate(text=text, voice=voice)
+        await communicate.save(filename)
     else:
-        voice = "en-US-GuyNeural"
+        response = client_openai.audio.speech.create(
+            model="tts-1",
+            voice="spruce",
+            input=text
+        )
+        response.stream_to_file(filename)
 
-    filename = f"elaniel_voice_{uuid.uuid4()}.mp3"
-    communicate = edge_tts.Communicate(text=text, voice=voice)
-    await communicate.save(filename)
     return filename
 
 @client.event
