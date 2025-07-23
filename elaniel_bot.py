@@ -71,7 +71,9 @@ user_memory = defaultdict(lambda: deque(maxlen=10))
 async def status_cycler():
     await client.wait_until_ready()
     while not client.is_closed():
-        for status in listening_statuses:
+        shuffled_statuses = listening_statuses[:]
+        random.shuffle(shuffled_statuses)
+        for status in shuffled_statuses:
             await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=status))
             await asyncio.sleep(600)
 
