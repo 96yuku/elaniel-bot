@@ -19,7 +19,7 @@ PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT")
 
 TRIGGER_WORDS = ["el", "エル", "エラン"]  # Removed "elaniel"
-VOICE_TRIGGER_WORDS = ["elan", "エラン"]
+VOICE_TRIGGER_WORDS = ["elan", "エラン"]  # Distinct voice triggers
 
 ALLOWED_ROLE_NAME = "El's friend"
 OWNER_USER_ID = 178453871700475904
@@ -166,7 +166,7 @@ intents.dm_messages = True
 
 client = discord.Client(intents=intents)
 
-async def generate_voice(text: str) -> str:
+async def generate_voice(text: str, voice_trigger: str = None) -> str:
     try:
         lang = langdetect.detect(text)
     except Exception:
@@ -174,17 +174,34 @@ async def generate_voice(text: str) -> str:
 
     filename = f"elaniel_voice_{uuid.uuid4()}.mp3"
 
-    if lang == "ja":
+    if voice_trigger == "エラン":
+        # Use edge-tts Keita voice for エラン
         voice = "ja-JP-KeitaNeural"
         communicate = edge_tts.Communicate(text=text, voice=voice)
         await communicate.save(filename)
-    else:
+
+    elif voice_trigger == "elan":
+        # Use OpenAI onyx voice for elan
         response = client_openai.audio.speech.create(
             model="tts-1",
             voice="onyx",
             input=text
         )
         response.stream_to_file(filename)
+
+    else:
+        # Default fallback based on language
+        if lang == "ja":
+            voice = "ja-JP-KeitaNeural"
+            communicate = edge_tts.Communicate(text=text, voice=voice)
+            await communicate.save(filename)
+        else:
+            response = client_openai.audio.speech.create(
+                model="tts-1",
+                voice="onyx",
+                input=text
+            )
+            response.stream_to_file(filename)
 
     return filename
 
@@ -198,7 +215,7 @@ async def on_message(message):
     if message.author == client.user:
         return
 
-    content = message.content.lower()
+    content_lower = message.content.lower()
 
     if message.content.startswith("!el_say"):
         if message.author.id != OWNER_USER_ID and not any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
@@ -211,7 +228,16 @@ async def on_message(message):
             return
 
         try:
-            mp3_file = await generate_voice(text_to_speak)
+            # Detect voice to use for !el_say (default to onyx for English, Keita for Japanese)
+            voice_trigger = None
+            if text_to_speak.startswith("エラン"):
+                voice_trigger = "エラン"
+                text_to_speak = text_to_speak[len("エラン"):].strip()
+            elif text_to_speak.startswith("elan"):
+                voice_trigger = "elan"
+                text_to_speak = text_to_speak[len("elan"):].strip()
+
+            mp3_file = await generate_voice(text_to_speak, voice_trigger=voice_trigger)
             await message.channel.send(file=discord.File(mp3_file))
             os.remove(mp3_file)
         except Exception as e:
@@ -245,8 +271,8 @@ async def on_message(message):
 
     if message.guild:
         # Handle memory wipe command
-        if content.startswith("el wipe memory"):
-            match = re.match(r"el wipe memory\s*<?@?(\d+)>?", content)
+        if content_lower.startswith("el wipe memory"):
+            match = re.match(r"el wipe memory\s*<?@?(\d+)>?", content_lower)
             if match and match.group(1):
                 target_id = int(match.group(1))
                 if message.author.id == OWNER_USER_ID:
@@ -262,7 +288,7 @@ async def on_message(message):
             return
 
         # Handle memory show command
-        if content.startswith("el show memory"):
+        if content_lower.startswith("el show memory"):
             if message.author.id == OWNER_USER_ID:
                 parts = message.content.split()
                 if len(parts) >= 4:
@@ -312,27 +338,31 @@ async def on_message(message):
                 return
 
         # Voice and text reply logic starts here
-        has_text_trigger = any(trigger in content for trigger in TRIGGER_WORDS)  # el, エル, エラン
-        starts_with_text_trigger = any(content.startswith(trigger) for trigger in TRIGGER_WORDS)
+        has_text_trigger = any(trigger in content_lower for trigger in TRIGGER_WORDS)  # el, エル, エラン
+        starts_with_text_trigger = any(content_lower.startswith(trigger) for trigger in TRIGGER_WORDS)
 
-        has_voice_trigger = any(vt in content for vt in VOICE_TRIGGER_WORDS)  # elan, エラン
-        starts_with_voice_trigger = any(content.startswith(vt) for vt in VOICE_TRIGGER_WORDS)
+        has_voice_trigger = any(vt in content_lower for vt in VOICE_TRIGGER_WORDS)  # elan, エラン
+        starts_with_voice_trigger = any(content_lower.startswith(vt) for vt in VOICE_TRIGGER_WORDS)
+
+        voice_trigger_used = None
+        for vt in VOICE_TRIGGER_WORDS:
+            if content_lower.startswith(vt):
+                voice_trigger_used = vt
+                break
 
         # OWNER
         if message.author.id == OWNER_USER_ID:
-            if has_voice_trigger:
-                prompt = content
-                for vt in VOICE_TRIGGER_WORDS:
-                    if prompt.startswith(vt):
-                        prompt = prompt[len(vt):].strip()
-                        break
+            if has_voice_trigger and voice_trigger_used:
+                prompt = content_lower
+                if prompt.startswith(voice_trigger_used):
+                    prompt = prompt[len(voice_trigger_used):].strip()
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
 
                 reply = await get_chatgpt_reply(prompt, message.author, message.guild)
                 try:
-                    mp3_file = await generate_voice(reply)
+                    mp3_file = await generate_voice(reply, voice_trigger=voice_trigger_used)
                     await message.channel.send(file=discord.File(mp3_file))
                     os.remove(mp3_file)
                 except Exception as e:
@@ -340,7 +370,7 @@ async def on_message(message):
                 return
 
             elif has_text_trigger:
-                prompt = content
+                prompt = content_lower
                 for trigger in TRIGGER_WORDS:
                     if trigger in prompt:
                         prompt = prompt.replace(trigger, '', 1).strip()
@@ -353,21 +383,19 @@ async def on_message(message):
                 await message.channel.send(reply)
                 return
 
-        # ALLOWED ROLE (must start with elan or エラン)
+        # ALLOWED ROLE
         elif any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
-            if starts_with_voice_trigger:
-                prompt = content
-                for vt in VOICE_TRIGGER_WORDS:
-                    if prompt.startswith(vt):
-                        prompt = prompt[len(vt):].strip()
-                        break
+            if starts_with_voice_trigger and voice_trigger_used:
+                prompt = content_lower
+                if prompt.startswith(voice_trigger_used):
+                    prompt = prompt[len(voice_trigger_used):].strip()
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
 
                 reply = await get_chatgpt_reply(prompt, message.author, message.guild)
                 try:
-                    mp3_file = await generate_voice(reply)
+                    mp3_file = await generate_voice(reply, voice_trigger=voice_trigger_used)
                     await message.channel.send(file=discord.File(mp3_file))
                     os.remove(mp3_file)
                 except Exception as e:
@@ -386,7 +414,7 @@ async def on_message(message):
 
         # PUBLIC USERS
         else:
-            if starts_with_voice_trigger:
+            if starts_with_voice_trigger and voice_trigger_used:
                 prompt = message.content.split(' ', 1)[1] if ' ' in message.content else ""
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
@@ -394,7 +422,7 @@ async def on_message(message):
 
                 reply = await get_chatgpt_reply(prompt, message.author, message.guild)
                 try:
-                    mp3_file = await generate_voice(reply)
+                    mp3_file = await generate_voice(reply, voice_trigger=voice_trigger_used)
                     await message.channel.send(file=discord.File(mp3_file))
                     os.remove(mp3_file)
                 except Exception as e:
