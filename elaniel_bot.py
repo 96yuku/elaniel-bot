@@ -310,21 +310,17 @@ async def on_message(message):
                 return
 
         # Voice and text reply logic starts here
-        has_el = any(trigger in content for trigger in TRIGGER_WORDS)
-        starts_with_el = any(content.startswith(trigger) for trigger in TRIGGER_WORDS)
-        has_say_voice = any(phrase in content for phrase in ["say this in voice", "voice this", "speak this"])
+        has_text_trigger = any(trigger in content for trigger in TRIGGER_WORDS)  # elaniel, el, エル
+        starts_with_text_trigger = any(content.startswith(trigger) for trigger in TRIGGER_WORDS)
+
+        has_voice_trigger = "elan" in content
+        starts_with_voice_trigger = content.startswith("elan")
 
         # OWNER
         if message.author.id == OWNER_USER_ID:
-            # Voice reply if el anywhere and any voice phrase anywhere
-            if has_el and has_say_voice:
+            if has_voice_trigger:
                 prompt = content
-                for trigger in TRIGGER_WORDS:
-                    if trigger in prompt:
-                        prompt = prompt.replace(trigger, '', 1).strip()
-                        break
-                for phrase in ["say this in voice", "voice this", "speak this"]:
-                    prompt = prompt.replace(phrase, "").strip()
+                prompt = prompt.replace("elan", "", 1).strip()
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
@@ -338,8 +334,7 @@ async def on_message(message):
                     await message.channel.send(f"Failed to generate voice: {e}")
                 return
 
-            # Else normal text reply if el anywhere
-            elif has_el:
+            elif has_text_trigger:
                 prompt = content
                 for trigger in TRIGGER_WORDS:
                     if trigger in prompt:
@@ -348,20 +343,17 @@ async def on_message(message):
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
+
                 reply = await get_chatgpt_reply(prompt, message.author, message.guild)
                 await message.channel.send(reply)
                 return
 
         # ALLOWED ROLE (must start with el)
         elif any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
-            if starts_with_el and has_say_voice:
+            if starts_with_voice_trigger:
                 prompt = content
-                for trigger in TRIGGER_WORDS:
-                    if prompt.startswith(trigger):
-                        prompt = prompt[len(trigger):].strip()
-                        break
-                for phrase in ["say this in voice", "voice this", "speak this"]:
-                    prompt = prompt.replace(phrase, "").strip()
+                if prompt.startswith("elan"):
+                    prompt = prompt[len("elan"):].strip()
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
@@ -375,32 +367,41 @@ async def on_message(message):
                     await message.channel.send(f"Failed to generate voice: {e}")
                 return
 
-            elif starts_with_el:
+            elif starts_with_text_trigger:
                 prompt = message.content.split(' ', 1)[1] if ' ' in message.content else ""
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
+
                 reply = await get_chatgpt_reply(prompt, message.author, message.guild)
                 await message.channel.send(reply)
                 return
 
         # PUBLIC USERS
         else:
-            if starts_with_el:
+            if starts_with_voice_trigger:
                 prompt = message.content.split(' ', 1)[1] if ' ' in message.content else ""
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
+
                 reply = await get_chatgpt_reply(prompt, message.author, message.guild)
-                if has_say_voice:
-                    try:
-                        mp3_file = await generate_voice(reply)
-                        await message.channel.send(file=discord.File(mp3_file))
-                        os.remove(mp3_file)
-                    except Exception as e:
-                        await message.channel.send(f"Failed to generate voice: {e}")
-                else:
-                    await message.channel.send(reply)
+                try:
+                    mp3_file = await generate_voice(reply)
+                    await message.channel.send(file=discord.File(mp3_file))
+                    os.remove(mp3_file)
+                except Exception as e:
+                    await message.channel.send(f"Failed to generate voice: {e}")
+                return
+
+            elif starts_with_text_trigger:
+                prompt = message.content.split(' ', 1)[1] if ' ' in message.content else ""
+                if not prompt:
+                    await message.channel.send("Yes? How can I serve?")
+                    return
+
+                reply = await get_chatgpt_reply(prompt, message.author, message.guild)
+                await message.channel.send(reply)
                 return
 
 client.run(DISCORD_BOT_TOKEN)
