@@ -7,6 +7,7 @@ import asyncio
 import edge_tts
 import uuid
 import langdetect
+import re
 
 # Pinecone imports
 from pinecone import Pinecone, ServerlessSpec
@@ -15,7 +16,7 @@ from pinecone import Pinecone, ServerlessSpec
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT")  # e.g. 'us-east-1'
+PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT")
 
 TRIGGER_WORDS = ["elaniel", "el", "エル"]
 ALLOWED_ROLE_NAME = "El's friend"
@@ -26,46 +27,35 @@ INDEX_NAME = "elaniel-memory"
 DIMENSION = 1536
 # ------------------------------------------
 
-# Helper to load whole file as string
 def load_prompt(filename):
     with open(filename, "r", encoding="utf-8") as f:
         return f.read()
 
-# Helper to load lines as list of strings (for statuses, denials)
 def load_lines(filename):
     with open(filename, "r", encoding="utf-8") as f:
         return [line.strip() for line in f if line.strip()]
 
-# Load prompts from text files
 SYSTEM_PROMPT_AURI = load_prompt("el_auri_prompt.txt")
 SYSTEM_PROMPT_FRIEND = load_prompt("el_friend_prompt.txt")
 SYSTEM_PROMPT_OTHER = load_prompt("el_other_prompt.txt")
 
-# Load listening statuses & DM denial messages from files
 listening_statuses = load_lines("el_listening_statuses.txt")
 dm_denials = load_lines("el_dm_denials.txt")
 
-# OpenAI client
 client_openai = OpenAI(api_key=OPENAI_API_KEY)
 
-# Pinecone client initialization
 pc = Pinecone(api_key=PINECONE_API_KEY)
 
-# Create index if missing
 if INDEX_NAME not in pc.list_indexes().names():
     pc.create_index(
         name=INDEX_NAME,
         dimension=DIMENSION,
         metric="cosine",
-        spec=ServerlessSpec(
-            cloud="aws",
-            region=PINECONE_ENVIRONMENT or "us-east-1"
-        )
+        spec=ServerlessSpec(cloud="aws", region=PINECONE_ENVIRONMENT or "us-east-1")
     )
 
 index = pc.Index(INDEX_NAME)
 
-# In-memory short term memory (per user)
 user_memory = defaultdict(lambda: deque(maxlen=10))
 
 async def status_cycler():
@@ -77,7 +67,6 @@ async def status_cycler():
             await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=status))
             await asyncio.sleep(600)
 
-# Add a vector memory item to Pinecone
 def add_memory(user_id: str, text: str):
     try:
         embedding_response = client_openai.embeddings.create(
@@ -90,7 +79,6 @@ def add_memory(user_id: str, text: str):
     except Exception as e:
         print(f"[Pinecone] Failed to add memory: {e}")
 
-# Query vector memory from Pinecone
 def query_memory(user_id: str, query: str, top_k=3):
     try:
         embedding_response = client_openai.embeddings.create(
@@ -101,27 +89,19 @@ def query_memory(user_id: str, query: str, top_k=3):
 
         results = index.query(queries=[query_embedding], top_k=top_k, include_metadata=True)
         matches = results.results[0].matches
-
-        # Filter for user-specific memories
         user_results = [match.metadata["text"] for match in matches if match.metadata.get("user_id") == user_id]
         return user_results
     except Exception as e:
         print(f"[Pinecone] Failed to query memory: {e}")
         return []
 
-# Delete vector memory from Pinecone
 def delete_memory(user_id: str):
     try:
-        # Fetch all vector IDs belonging to the user
         results = index.describe_index_stats()
-        all_ids = results.get("total_vector_count", 0)
-
-        if all_ids > 0:
-            # This will require fetching and filtering vectors with metadata
+        if results.get("total_vector_count", 0) > 0:
             query_result = index.query(queries=[[0.0]*DIMENSION], top_k=1000, include_metadata=True)
             matches = query_result.results[0].matches
             user_ids = [m.id for m in matches if m.metadata.get("user_id") == user_id]
-
             if user_ids:
                 index.delete(ids=user_ids)
                 print(f"[Pinecone] Deleted {len(user_ids)} memory vectors for user {user_id}")
@@ -145,7 +125,6 @@ async def get_chatgpt_reply(prompt, user, guild=None):
                 system_prompt = SYSTEM_PROMPT_FRIEND
                 include_memory = True
 
-        # Query Pinecone vector memory
         memories = query_memory(str(user.id), prompt, top_k=3)
         memories_text = "\n".join(memories) if memories else ""
 
@@ -153,7 +132,6 @@ async def get_chatgpt_reply(prompt, user, guild=None):
 
         messages = [{"role": "system", "content": full_prompt}]
 
-        # Short-term in-memory chat history for owner/friends
         if include_memory:
             for role_, content in user_memory[user.id]:
                 messages.append({"role": role_, "content": content})
@@ -170,7 +148,6 @@ async def get_chatgpt_reply(prompt, user, guild=None):
             user_memory[user.id].append(("user", prompt))
             user_memory[user.id].append(("assistant", reply))
 
-        # Add prompt to vector memory (Pinecone)
         add_memory(str(user.id), prompt)
 
         return reply
@@ -187,7 +164,6 @@ intents.dm_messages = True
 
 client = discord.Client(intents=intents)
 
-# Voice generation helper
 async def generate_voice(text: str) -> str:
     try:
         lang = langdetect.detect(text)
@@ -254,7 +230,7 @@ async def on_message(message):
                 log_channel = client.get_channel(LOG_CHANNEL_ID)
                 if log_channel:
                     await log_channel.send(
-                        f"📥 **Unauthorized DM Attempt**\n"
+                        f"\U0001F4E5 **Unauthorized DM Attempt**\n"
                         f"From: {message.author} (`{message.author.id}`)\n"
                         f"Message: {message.content}"
                     )
@@ -266,12 +242,21 @@ async def on_message(message):
             return
 
     if message.guild:
-        if content.strip() == "el reset memory":
-            if message.author.id == OWNER_USER_ID or any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
+        if content.startswith("el wipe memory"):
+            match = re.match(r"el wipe memory\s*<?@?(\d+)?>?", content)
+            if match and match.group(1):
+                target_id = int(match.group(1))
+                if message.author.id == OWNER_USER_ID:
+                    user_memory[target_id].clear()
+                    delete_memory(str(target_id))
+                    await message.channel.send(f"Wiped memory for <@{target_id}>.")
+                else:
+                    await message.channel.send("You can't wipe someone else's memory.")
+            else:
                 user_memory[message.author.id].clear()
                 delete_memory(str(message.author.id))
-                await message.channel.send("Memory reset.")
-                return
+                await message.channel.send("Your memory has been wiped.")
+            return
 
         if content.strip() == "el show memory":
             if message.author.id == OWNER_USER_ID or any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
