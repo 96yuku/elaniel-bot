@@ -44,7 +44,7 @@ if INDEX_NAME not in pc.list_indexes().names():
         )
     )
 
-index = pc.index(INDEX_NAME)
+index = pc.Index(INDEX_NAME)
 
 # In-memory short term memory (per user)
 user_memory = defaultdict(lambda: deque(maxlen=10))
