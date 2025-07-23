@@ -2,4 +2,4 @@ discord.py
 openai
 edge-tts
 langdetect
-pinecone-client
+pinecone
