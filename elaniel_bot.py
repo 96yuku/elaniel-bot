@@ -243,7 +243,7 @@ async def on_message(message):
 
     if message.guild:
         if content.startswith("el wipe memory"):
-            match = re.match(r"el wipe memory\s*<?@?(\d+)?>?", content)
+            match = re.match(r"el wipe memory\s*<?@?(\d+)>?", content)
             if match and match.group(1):
                 target_id = int(match.group(1))
                 if message.author.id == OWNER_USER_ID:
@@ -258,14 +258,53 @@ async def on_message(message):
                 await message.channel.send("Your memory has been wiped.")
             return
 
-        if content.strip() == "el show memory":
-            if message.author.id == OWNER_USER_ID or any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
+        if content.startswith("el show memory"):
+            if message.author.id == OWNER_USER_ID:
+                parts = message.content.split()
+                if len(parts) >= 4:
+                    arg = parts[3]
+                    target_user = None
+
+                    mention_match = re.match(r'<@!?(\d+)>', arg)
+                    if mention_match:
+                        user_id = int(mention_match.group(1))
+                        target_user = message.guild.get_member(user_id)
+                    else:
+                        try:
+                            user_id = int(arg)
+                            target_user = message.guild.get_member(user_id)
+                        except:
+                            pass
+
+                    if target_user:
+                        history = user_memory.get(target_user.id, [])
+                        if not history:
+                            await message.channel.send(f"Memory for {target_user} is empty.")
+                        else:
+                            formatted = "\n".join([f"**{r}**: {c}" for r, c in history])
+                            await message.channel.send(f"Memory for {target_user}:\n{formatted}")
+                    else:
+                        await message.channel.send("User not found or invalid mention/ID.")
+                    return
+                else:
+                    history = user_memory[message.author.id]
+                    if not history:
+                        await message.channel.send("Memory is currently empty.")
+                    else:
+                        formatted = "\n".join([f"**{r}**: {c}" for r, c in history])
+                        await message.channel.send(f"Current memory:\n{formatted}")
+                    return
+
+            elif any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
                 history = user_memory[message.author.id]
                 if not history:
                     await message.channel.send("Memory is currently empty.")
                 else:
                     formatted = "\n".join([f"**{r}**: {c}" for r, c in history])
                     await message.channel.send(f"Current memory:\n{formatted}")
+                return
+            else:
+                await message.channel.send("You do not have permission to view others' memory.")
                 return
 
         if message.author.id == OWNER_USER_ID:
