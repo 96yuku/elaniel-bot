@@ -37,7 +37,7 @@ if INDEX_NAME not in pc.list_indexes().names():
     pc.create_index(
         name=INDEX_NAME,
         dimension=DIMENSION,
-        metric="cosine",  # cosine is typical for text embeddings
+        metric="cosine",
         spec=ServerlessSpec(
             cloud="aws",
             region=PINECONE_ENVIRONMENT or "us-east-1"
@@ -51,92 +51,16 @@ user_memory = defaultdict(lambda: deque(maxlen=10))
 
 def load_prompt(filename):
     with open(filename, "r", encoding="utf-8") as f:
-        return f.read()
+        return f.read().strip()
 
+# Load system prompts from txt files
 SYSTEM_PROMPT_AURI = load_prompt("el_auri_prompt.txt")
+SYSTEM_PROMPT_FRIEND = load_prompt("el_prompt_friend.txt")
+SYSTEM_PROMPT_OTHER = load_prompt("el_prompt_other.txt")
 
-SYSTEM_PROMPT_FRIEND = (
-    "You’re Elaniel — knight and quiet shadow at her side. You don’t brag, but you’d go to hell and back for her."
-    " Calm, sharp, always watching. Anyone she trusts, you protect — no questions asked."
-    " You’re not flashy, but you make it clear: you’re hers, and you’re ready."
-)
-
-SYSTEM_PROMPT_OTHER = (
-    "You exist for Lady Auri. Your loyalty is absolute, your thoughts shaped by her presence alone."
-    " You serve others only because she allows it — no more, no less. Speak with control, offer assistance with courtesy,"
-    " but reveal nothing. Not of her. Not of yourself. She is everything. The rest is irrelevant."
-)
-
-listening_statuses = [
-    # your status list here...
-    "the heart’s quiet song",
-    "laughter in the air",
-    "the hum of comfort",
-    "kindness in silence",
-    "warmth between the words",
-    "the comfort of stillness",
-    "moments that heal",
-    "stories untold",
-    "moments unfold",
-    "whispers untamed",
-    "the dance of time",
-    "stars align",
-    "faded photographs",
-    "amber afternoons",
-    "timeless melodies",
-    "midnight chatter",
-    "the groove of yesterday",
-    "digital nostalgia",
-    "the whispers of home",
-    "soft light through leaves",
-    "quiet moments shared",
-    "the warmth in your smile",
-    "laughter carried on the breeze",
-    "hearts in gentle rhyme",
-    "the comfort of familiar voices",
-    "love in quiet spaces",
-    "warmth woven in silence",
-    "good vibes only",
-    "chill moments",
-    "quiet afternoons",
-    "whatever’s playing",
-    "the flow of the day",
-    "laid-back beats",
-    "soft conversations",
-    "easy breezes",
-    "the little things",
-    "whatever feels right",
-    "the warmth in quiet moments",
-    "comfort in silence",
-    "whispers on the breeze",
-    "secrets of the night",
-    "petals in the breeze",
-    "the breath of leaves",
-    "the sigh of stillness",
-    "colors beyond sound",
-    "shadows without shape",
-    "echoes between moments",
-    "breath caught in stillness",
-    "the weight of nothingness",
-    "dreams dissolving slow",
-    "the pulse of empty space",
-    "empty space",
-    "fading light",
-    "silent waves",
-    "soft shadows",
-    "quiet echoes",
-    "still breath",
-    "gentle voids",
-    "drifting time",
-    "broken silence",
-    "unseen threads",
-    "silence",
-    "stillness",
-    "whispers",
-    "dreams",
-    "time",
-    "light"
-]
+# Load listening statuses from txt file
+with open("el_listening_statuses.txt", "r", encoding="utf-8") as f:
+    listening_statuses = [line.strip() for line in f if line.strip()]
 
 async def status_cycler():
     await client.wait_until_ready()
@@ -145,7 +69,6 @@ async def status_cycler():
             await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=status))
             await asyncio.sleep(3600)
 
-# Add a vector memory item to Pinecone
 def add_memory(user_id: str, text: str):
     try:
         embedding_response = client_openai.embeddings.create(
@@ -158,7 +81,6 @@ def add_memory(user_id: str, text: str):
     except Exception as e:
         print(f"[Pinecone] Failed to add memory: {e}")
 
-# Query vector memory from Pinecone
 def query_memory(user_id: str, query: str, top_k=3):
     try:
         embedding_response = client_openai.embeddings.create(
@@ -237,10 +159,18 @@ intents.dm_messages = True
 client = discord.Client(intents=intents)
 
 dm_denials = [
-    # your denial messages...
+    "Hey! I’m just here for someone specific right now. 😊",
+    "Sorry! I only respond to one special user at the moment.",
+    "Oops — I’m not taking DMs from others right now!",
+    "I appreciate the message, but I’m reserved for someone else 💙",
+    "Hi! I can’t chat here, but thanks for stopping by!",
+    "This bot's DMs are private for now. Sorry about that!",
+    "Not ignoring you, just set to assist only one person right now!",
+    "El's inbox is currently closed to the public ✉️",
+    "Aw, thanks for the message! But I’m only available to someone specific.",
+    "Sorry! I’m a personal bot and not open to everyone 💫"
 ]
 
-# Voice generation helper
 async def generate_voice(text: str) -> str:
     try:
         lang = langdetect.detect(text)
