@@ -194,7 +194,7 @@ async def generate_voice(text: str) -> str:
     else:
         response = client_openai.audio.speech.create(
             model="tts-1",
-            voice="spruce",
+            voice="echo",
             input=text
         )
         response.stream_to_file(filename)
