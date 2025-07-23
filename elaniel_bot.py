@@ -109,6 +109,25 @@ def query_memory(user_id: str, query: str, top_k=3):
         print(f"[Pinecone] Failed to query memory: {e}")
         return []
 
+# Delete vector memory from Pinecone
+def delete_memory(user_id: str):
+    try:
+        # Fetch all vector IDs belonging to the user
+        results = index.describe_index_stats()
+        all_ids = results.get("total_vector_count", 0)
+
+        if all_ids > 0:
+            # This will require fetching and filtering vectors with metadata
+            query_result = index.query(queries=[[0.0]*DIMENSION], top_k=1000, include_metadata=True)
+            matches = query_result.results[0].matches
+            user_ids = [m.id for m in matches if m.metadata.get("user_id") == user_id]
+
+            if user_ids:
+                index.delete(ids=user_ids)
+                print(f"[Pinecone] Deleted {len(user_ids)} memory vectors for user {user_id}")
+    except Exception as e:
+        print(f"[Pinecone] Failed to delete memory: {e}")
+
 async def get_chatgpt_reply(prompt, user, guild=None):
     try:
         model = "gpt-3.5-turbo"
@@ -250,6 +269,7 @@ async def on_message(message):
         if content.strip() == "el reset memory":
             if message.author.id == OWNER_USER_ID or any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
                 user_memory[message.author.id].clear()
+                delete_memory(str(message.author.id))
                 await message.channel.send("Memory reset.")
                 return
 
