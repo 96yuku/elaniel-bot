@@ -312,18 +312,19 @@ async def on_message(message):
         # Voice and text reply logic starts here
         has_el = any(trigger in content for trigger in TRIGGER_WORDS)
         starts_with_el = any(content.startswith(trigger) for trigger in TRIGGER_WORDS)
-        has_say_voice = "say this in voice" in content
+        has_say_voice = any(phrase in content for phrase in ["say this in voice", "voice this", "speak this"])
 
         # OWNER
         if message.author.id == OWNER_USER_ID:
-            # Voice reply if el anywhere and say this in voice anywhere
+            # Voice reply if el anywhere and any voice phrase anywhere
             if has_el and has_say_voice:
                 prompt = content
                 for trigger in TRIGGER_WORDS:
                     if trigger in prompt:
                         prompt = prompt.replace(trigger, '', 1).strip()
                         break
-                prompt = prompt.replace("say this in voice", "").strip()
+                for phrase in ["say this in voice", "voice this", "speak this"]:
+                    prompt = prompt.replace(phrase, "").strip()
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
@@ -359,7 +360,8 @@ async def on_message(message):
                     if prompt.startswith(trigger):
                         prompt = prompt[len(trigger):].strip()
                         break
-                prompt = prompt.replace("say this in voice", "").strip()
+                for phrase in ["say this in voice", "voice this", "speak this"]:
+                    prompt = prompt.replace(phrase, "").strip()
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
