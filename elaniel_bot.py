@@ -8,7 +8,7 @@ import edge_tts
 import uuid
 import langdetect
 
-# New Pinecone imports
+# Pinecone imports
 from pinecone import Pinecone, ServerlessSpec
 
 # ------------ CONFIGURE THESE -------------
@@ -26,13 +26,32 @@ INDEX_NAME = "elaniel-memory"
 DIMENSION = 1536
 # ------------------------------------------
 
+# Helper to load whole file as string
+def load_prompt(filename):
+    with open(filename, "r", encoding="utf-8") as f:
+        return f.read()
+
+# Helper to load lines as list of strings (for statuses, denials)
+def load_lines(filename):
+    with open(filename, "r", encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip()]
+
+# Load prompts from text files
+SYSTEM_PROMPT_AURI = load_prompt("el_auri_prompt.txt")
+SYSTEM_PROMPT_FRIEND = load_prompt("el_friend_prompt.txt")
+SYSTEM_PROMPT_OTHER = load_prompt("el_other_prompt.txt")
+
+# Load listening statuses & DM denial messages from files
+listening_statuses = load_lines("el_listening_statuses.txt")
+dm_denials = load_lines("el_dm_denials.txt")
+
 # OpenAI client
 client_openai = OpenAI(api_key=OPENAI_API_KEY)
 
-# Pinecone client
+# Pinecone client initialization
 pc = Pinecone(api_key=PINECONE_API_KEY)
 
-# Create index if it doesn't exist
+# Create index if missing
 if INDEX_NAME not in pc.list_indexes().names():
     pc.create_index(
         name=INDEX_NAME,
@@ -49,26 +68,14 @@ index = pc.Index(INDEX_NAME)
 # In-memory short term memory (per user)
 user_memory = defaultdict(lambda: deque(maxlen=10))
 
-def load_prompt(filename):
-    with open(filename, "r", encoding="utf-8") as f:
-        return f.read().strip()
-
-# Load system prompts from txt files
-SYSTEM_PROMPT_AURI = load_prompt("el_auri_prompt.txt")
-SYSTEM_PROMPT_FRIEND = load_prompt("el_prompt_friend.txt")
-SYSTEM_PROMPT_OTHER = load_prompt("el_prompt_other.txt")
-
-# Load listening statuses from txt file
-with open("el_listening_statuses.txt", "r", encoding="utf-8") as f:
-    listening_statuses = [line.strip() for line in f if line.strip()]
-
 async def status_cycler():
     await client.wait_until_ready()
     while not client.is_closed():
         for status in listening_statuses:
             await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=status))
-            await asyncio.sleep(3600)
+            await asyncio.sleep(600)
 
+# Add a vector memory item to Pinecone
 def add_memory(user_id: str, text: str):
     try:
         embedding_response = client_openai.embeddings.create(
@@ -81,6 +88,7 @@ def add_memory(user_id: str, text: str):
     except Exception as e:
         print(f"[Pinecone] Failed to add memory: {e}")
 
+# Query vector memory from Pinecone
 def query_memory(user_id: str, query: str, top_k=3):
     try:
         embedding_response = client_openai.embeddings.create(
@@ -158,19 +166,7 @@ intents.dm_messages = True
 
 client = discord.Client(intents=intents)
 
-dm_denials = [
-    "Hey! I’m just here for someone specific right now. 😊",
-    "Sorry! I only respond to one special user at the moment.",
-    "Oops — I’m not taking DMs from others right now!",
-    "I appreciate the message, but I’m reserved for someone else 💙",
-    "Hi! I can’t chat here, but thanks for stopping by!",
-    "This bot's DMs are private for now. Sorry about that!",
-    "Not ignoring you, just set to assist only one person right now!",
-    "El's inbox is currently closed to the public ✉️",
-    "Aw, thanks for the message! But I’m only available to someone specific.",
-    "Sorry! I’m a personal bot and not open to everyone 💫"
-]
-
+# Voice generation helper
 async def generate_voice(text: str) -> str:
     try:
         lang = langdetect.detect(text)
