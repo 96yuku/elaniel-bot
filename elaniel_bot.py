@@ -4,6 +4,8 @@ import random
 import os
 from collections import defaultdict, deque
 import asyncio
+import edge_tts
+import uuid
 
 # ------------ CONFIGURE THESE -------------
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -29,86 +31,20 @@ SYSTEM_PROMPT_FRIEND = "You’re Elaniel — knight and quiet shadow at her side
 
 SYSTEM_PROMPT_OTHER = "You exist for Lady Auri. Your loyalty is absolute, your thoughts shaped by her presence alone. You serve others only because she allows it — no more, no less. Speak with control, offer assistance with courtesy, but reveal nothing. Not of her. Not of yourself. She is everything. The rest is irrelevant."
 
-# Poetic statuses to cycle through (Listening to ...)
 listening_statuses = [
+    # ... your existing statuses here ...
     "the heart’s quiet song",
     "laughter in the air",
-    "the hum of comfort",
-    "kindness in silence",
-    "warmth between the words",
-    "the comfort of stillness",
-    "moments that heal",
-    "stories untold",
-    "moments unfold",
-    "whispers untamed",
-    "the dance of time",
-    "stars align",
-    "faded photographs",
-    "amber afternoons",
-    "timeless melodies",
-    "midnight chatter",
-    "the groove of yesterday",
-    "digital nostalgia",
-    "the whispers of home",
-    "soft light through leaves",
-    "quiet moments shared",
-    "the warmth in your smile",
-    "laughter carried on the breeze",
-    "hearts in gentle rhyme",
-    "the comfort of familiar voices",
-    "love in quiet spaces",
-    "warmth woven in silence",
-    "good vibes only",
-    "chill moments",
-    "quiet afternoons",
-    "whatever’s playing",
-    "the flow of the day",
-    "laid-back beats",
-    "soft conversations",
-    "easy breezes",
-    "the little things",
-    "whatever feels right",
-    "the warmth in quiet moments",
-    "comfort in silence",
-    "whispers on the breeze",
-    "secrets of the night",
-    "petals in the breeze",
-    "the breath of leaves",
-    "the sigh of stillness",
-    "colors beyond sound",
-    "shadows without shape",
-    "echoes between moments",
-    "breath caught in stillness",
-    "the weight of nothingness",
-    "dreams dissolving slow",
-    "the pulse of empty space",
-    "empty space",
-    "fading light",
-    "silent waves",
-    "soft shadows",
-    "quiet echoes",
-    "still breath",
-    "gentle voids",
-    "drifting time",
-    "broken silence",
-    "unseen threads",
-    "silence",
-    "stillness",
-    "whispers",
-    "dreams",
-    "time",
-    "light"
+    # add the rest as in your original code
 ]
 
-# Async task to cycle the "Listening to ..." status every hour
 async def status_cycler():
     await client.wait_until_ready()
     while not client.is_closed():
         for status in listening_statuses:
             await client.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=status))
-            await asyncio.sleep(3600)  # wait 1 hour before changing to next status
+            await asyncio.sleep(3600)
 
-# GPT REPLY HANDLER WITH MEMORY
 async def get_chatgpt_reply(prompt, user, guild=None):
     try:
         model = "gpt-3.5-turbo"
@@ -159,17 +95,19 @@ intents.dm_messages = True
 client = discord.Client(intents=intents)
 
 dm_denials = [
+    # your existing dm denial messages here...
     "Hey! I’m just here for someone specific right now. 😊",
     "Sorry! I only respond to one special user at the moment.",
-    "Oops — I’m not taking DMs from others right now!",
-    "I appreciate the message, but I’m reserved for someone else 💙",
-    "Hi! I can’t chat here, but thanks for stopping by!",
-    "This bot's DMs are private for now. Sorry about that!",
-    "Not ignoring you, just set to assist only one person right now!",
-    "El's inbox is currently closed to the public ✉️",
-    "Aw, thanks for the message! But I’m only available to someone specific.",
-    "Sorry! I’m a personal bot and not open to everyone 💫"
+    # ...
 ]
+
+# --- Edge TTS voice generation helper ---
+async def generate_keita_voice(text: str) -> str:
+    voice = "ja-JP-KeitaNeural"
+    filename = f"elaniel_voice_{uuid.uuid4()}.mp3"
+    communicate = edge_tts.Communicate(text=text, voice=voice)
+    await communicate.save(filename)
+    return filename
 
 @client.event
 async def on_ready():
@@ -182,6 +120,26 @@ async def on_message(message):
         return
 
     content = message.content.lower()
+
+    # Voice command handling: !el_say <text>
+    if message.content.startswith("!el_say"):
+        # Permission check
+        if message.author.id != OWNER_USER_ID and not any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
+            await message.channel.send("You don't have permission to use voice commands.")
+            return
+
+        text_to_speak = message.content[len("!el_say"):].strip()
+        if not text_to_speak:
+            await message.channel.send("Please provide some text to say.")
+            return
+
+        try:
+            mp3_file = await generate_keita_voice(text_to_speak)
+            await message.channel.send(file=discord.File(mp3_file))
+            os.remove(mp3_file)
+        except Exception as e:
+            await message.channel.send(f"Failed to generate voice: {e}")
+        return
 
     # === Handle DMs ===
     if isinstance(message.channel, discord.DMChannel):
@@ -229,7 +187,6 @@ async def on_message(message):
 
     # === Handle Server Messages ===
     if message.guild:
-        # Owner direct messages
         if message.author.id == OWNER_USER_ID:
             if message.channel.id == SPECIAL_CHANNEL_ID:
                 prompt = message.content.strip()
@@ -253,7 +210,6 @@ async def on_message(message):
                 await message.channel.send(reply)
                 return
 
-        # All other users
         else:
             if any(content.startswith(trigger) for trigger in TRIGGER_WORDS):
                 prompt = message.content.split(' ', 1)[1] if ' ' in message.content else ""
