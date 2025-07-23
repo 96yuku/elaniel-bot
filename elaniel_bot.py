@@ -18,8 +18,8 @@ DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT")
 
-TRIGGER_WORDS = ["elaniel", "el", "エル", "エラン"]
-VOICE_TRIGGER_WORDS = ["elan", "エラン"]  # Added エラン here
+TRIGGER_WORDS = ["el", "エル", "エラン"]  # Removed "elaniel"
+VOICE_TRIGGER_WORDS = ["elan", "エラン"]
 
 ALLOWED_ROLE_NAME = "El's friend"
 OWNER_USER_ID = 178453871700475904
@@ -312,7 +312,7 @@ async def on_message(message):
                 return
 
         # Voice and text reply logic starts here
-        has_text_trigger = any(trigger in content for trigger in TRIGGER_WORDS)  # elaniel, el, エル, エラン
+        has_text_trigger = any(trigger in content for trigger in TRIGGER_WORDS)  # el, エル, エラン
         starts_with_text_trigger = any(content.startswith(trigger) for trigger in TRIGGER_WORDS)
 
         has_voice_trigger = any(vt in content for vt in VOICE_TRIGGER_WORDS)  # elan, エラン
@@ -353,7 +353,7 @@ async def on_message(message):
                 await message.channel.send(reply)
                 return
 
-        # ALLOWED ROLE (must start with el or エラン)
+        # ALLOWED ROLE (must start with elan or エラン)
         elif any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
             if starts_with_voice_trigger:
                 prompt = content
