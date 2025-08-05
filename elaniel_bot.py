@@ -29,6 +29,9 @@ INDEX_NAME = "elaniel-memory"
 DIMENSION = 1536
 # ------------------------------------------
 
+# Add regex for whole word trigger matching (case insensitive)
+TRIGGER_REGEX = re.compile(r"\b(elaniel|el|エル|elan|エラン)\b", re.IGNORECASE)
+
 def load_prompt(filename):
     with open(filename, "r", encoding="utf-8") as f:
         return f.read()
@@ -338,11 +341,12 @@ async def on_message(message):
                 return
 
         # Voice and text reply logic starts here
-        has_text_trigger = any(trigger in content_lower for trigger in TRIGGER_WORDS)  # el, エル, エラン
+        # -- Updated trigger checks to use whole word regex --
+        has_text_trigger = bool(TRIGGER_REGEX.search(content_lower))
         starts_with_text_trigger = any(content_lower.startswith(trigger) for trigger in TRIGGER_WORDS)
 
-        has_voice_trigger = any(vt in content_lower for vt in VOICE_TRIGGER_WORDS)  # elan, エラン
-        starts_with_voice_trigger = any(content_lower.startswith(vt) for vt in VOICE_TRIGGER_WORDS)
+        has_voice_trigger = any(content_lower.startswith(vt) for vt in VOICE_TRIGGER_WORDS)
+        starts_with_voice_trigger = has_voice_trigger  # same
 
         voice_trigger_used = None
         for vt in VOICE_TRIGGER_WORDS:
@@ -353,9 +357,7 @@ async def on_message(message):
         # OWNER
         if message.author.id == OWNER_USER_ID:
             if has_voice_trigger and voice_trigger_used:
-                prompt = content_lower
-                if prompt.startswith(voice_trigger_used):
-                    prompt = prompt[len(voice_trigger_used):].strip()
+                prompt = content_lower[len(voice_trigger_used):].strip()
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
@@ -370,11 +372,8 @@ async def on_message(message):
                 return
 
             elif has_text_trigger:
-                prompt = content_lower
-                for trigger in TRIGGER_WORDS:
-                    if trigger in prompt:
-                        prompt = prompt.replace(trigger, '', 1).strip()
-                        break
+                # Remove only the first occurrence of any trigger word found by regex
+                prompt = TRIGGER_REGEX.sub('', content_lower, count=1).strip()
                 if not prompt:
                     await message.channel.send("Yes? How can I serve?")
                     return
@@ -385,58 +384,5 @@ async def on_message(message):
 
         # ALLOWED ROLE
         elif any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
-            if starts_with_voice_trigger and voice_trigger_used:
-                prompt = content_lower
-                if prompt.startswith(voice_trigger_used):
-                    prompt = prompt[len(voice_trigger_used):].strip()
-                if not prompt:
-                    await message.channel.send("Yes? How can I serve?")
-                    return
-
-                reply = await get_chatgpt_reply(prompt, message.author, message.guild)
-                try:
-                    mp3_file = await generate_voice(reply, voice_trigger=voice_trigger_used)
-                    await message.channel.send(file=discord.File(mp3_file))
-                    os.remove(mp3_file)
-                except Exception as e:
-                    await message.channel.send(f"Failed to generate voice: {e}")
-                return
-
-            elif starts_with_text_trigger:
-                prompt = message.content.split(' ', 1)[1] if ' ' in message.content else ""
-                if not prompt:
-                    await message.channel.send("Yes? How can I serve?")
-                    return
-
-                reply = await get_chatgpt_reply(prompt, message.author, message.guild)
-                await message.channel.send(reply)
-                return
-
-        # PUBLIC USERS
-        else:
-            if starts_with_voice_trigger and voice_trigger_used:
-                prompt = message.content.split(' ', 1)[1] if ' ' in message.content else ""
-                if not prompt:
-                    await message.channel.send("Yes? How can I serve?")
-                    return
-
-                reply = await get_chatgpt_reply(prompt, message.author, message.guild)
-                try:
-                    mp3_file = await generate_voice(reply, voice_trigger=voice_trigger_used)
-                    await message.channel.send(file=discord.File(mp3_file))
-                    os.remove(mp3_file)
-                except Exception as e:
-                    await message.channel.send(f"Failed to generate voice: {e}")
-                return
-
-            elif starts_with_text_trigger:
-                prompt = message.content.split(' ', 1)[1] if ' ' in message.content else ""
-                if not prompt:
-                    await message.channel.send("Yes? How can I serve?")
-                    return
-
-                reply = await get_chatgpt_reply(prompt, message.author, message.guild)
-                await message.channel.send(reply)
-                return
-
-client.run(DISCORD_BOT_TOKEN)
+            if has_voice_trigger and voice_trigger_used:
+               
