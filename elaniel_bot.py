@@ -382,7 +382,6 @@ async def on_message(message):
                 await message.channel.send(reply)
                 return
 
-        # ALLOWED ROLE
         elif any(role.name == ALLOWED_ROLE_NAME for role in message.author.roles):
-            if has_voice_trigger and voice_trigger_used:
-               
+            if has_voice_trigger and voice_trigger_used and TRIGGER_REGEX.match(message.content):
+                await handle_elaniel_trigger(message)
